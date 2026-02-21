@@ -15,11 +15,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # 第三方
-    'rest_framework',
-    'rest_framework_simplejwt',
+    # 跨域
     'corsheaders',
-    'django_filters',
     # 本地应用
     'users',
     'activities',
@@ -65,7 +62,28 @@ DATABASES = {
 }
 
 # 密码验证（默认）
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
+    },
+]
 
+# 密码哈希
+PASSWORD_HASHERS = [
+'django.contrib.auth.hashers.BCryptSHA256PasswordHasher',
+'django.contrib.auth.hashers.BCryptPasswordHasher',
+'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
+]
 # 国际化
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
@@ -78,24 +96,3 @@ STATIC_URL = '/static/'
 
 # 跨域设置（开发环境允许所有，生产环境需限制）
 CORS_ALLOW_ALL_ORIGINS = True  # 仅开发使用
-
-# REST Framework 配置
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
-    'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',  # 默认需要登录
-    ),
-    'DEFAULT_FILTER_BACKENDS': (
-        'django_filters.rest_framework.DjangoFilterBackend',
-    ),
-}
-
-# JWT 设置
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': False,
-    'BLACKLIST_AFTER_ROTATION': True,
-}
