@@ -85,6 +85,12 @@ PASSWORD_HASHERS = [
 'django.contrib.auth.hashers.PBKDF2PasswordHasher',
 'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
 ]
+
+# Session 有效期（秒），默认 1209600（两周）
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 1 # 1 天
+# 是否在浏览器关闭时过期
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
 # 国际化
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
