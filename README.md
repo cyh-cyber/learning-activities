@@ -25,5 +25,5 @@ python manage.py migrate
 ```
 4.最后运行服务器
 ```sh
-manage.py runserver
+python manage.py runserver
 ```
