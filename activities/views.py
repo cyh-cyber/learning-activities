@@ -18,7 +18,7 @@ def is_student(user):
 
 @login_required
 @require_http_methods(["GET"])
-def activity_list(request):#TODO: 获取所有活动列表
+def activity_list(request):#获取所有活动列表
     activities = Activity.objects.filter(is_active=True)
 
     # 筛选
@@ -57,8 +57,30 @@ def activity_list(request):#TODO: 获取所有活动列表
 @login_required
 @csrf_exempt
 @require_http_methods(["POST"])
-def create_activity(request):#TODO: 教师创建活动
-    pass
+def create_activity(request):# 教师创建活动
+    if not is_teacher(request.user):
+        return JsonResponse({'error': 'Only teachers can create activities'}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        activity = Activity.objects.create(
+            title=data['title'],
+            description=data.get('description', ''),
+            time=data['time'],
+            place=data['place'],
+            category=data['category'],
+            created_by=request.user
+        )
+        return JsonResponse({
+            'id': activity.id,
+            'title': activity.title,
+            'message': 'Activity created successfully'
+        }, status=201)
+    except KeyError as e:
+        return JsonResponse({'error': f'Missing field: {e}'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
 @login_required
 @csrf_exempt
 @require_http_methods(["POST"])
