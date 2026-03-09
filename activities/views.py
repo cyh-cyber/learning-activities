@@ -19,37 +19,73 @@ def is_student(user):
 @login_required
 @require_http_methods(["GET"])
 def activity_list(request):#TODO: 获取所有活动列表
+    activities = Activity.objects.filter(is_active=True)
 
+    # 筛选
+    category = request.GET.get('category')
+    if category:
+        activities = activities.filter(category=category)
+
+    date_from = request.GET.get('date_from')
+    if date_from:
+        activities = activities.filter(time__date__gte=date_from)
+
+    # 教师查看自己创建的
+    if request.GET.get('created_by_me') == 'true':
+        if is_teacher(request.user):
+            activities = activities.filter(created_by=request.user)
+        else:
+            return JsonResponse({'error': 'Permission denied'}, status=403)
+
+    # 手动构建数据
+    data = []
+    for act in activities:
+        data.append({
+            'id': act.id,
+            'title': act.title,
+            'description': act.description,
+            'time': act.time.isoformat(),
+            'place': act.place,
+            'category': act.category,
+            'teacher_name': act.created_by.username,
+            'is_registered': act.registrations.filter(student=request.user).exists() if is_student(
+                request.user) else False,
+            'is_active': act.is_active,
+        })
+    return JsonResponse(data, safe=False)
 
 @login_required
 @csrf_exempt
 @require_http_methods(["POST"])
 def create_activity(request):#TODO: 教师创建活动
+    pass
+@login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def cancel_activity(request, activity_id):  # TODO: 教师取消活动
+    pass
+@login_required
+def participants(request, activity_id):  # TODO: 教师获取活动参与者列表
+    pass
 
 @login_required
 def activity_detail(request, activity_id):#TODO: 获取活动详情
-
+    pass
 @login_required
 @csrf_exempt
 @require_http_methods(["POST"])
 def register_activity(request, activity_id):#TODO: 学生报名活动
-
+    pass
 @login_required
 @csrf_exempt
 @require_http_methods(["POST"])
 def cancel_registration(request, activity_id):#TODO: 学生取消报名
-
-@login_required
-@csrf_exempt
-@require_http_methods(["POST"])
-def cancel_activity(request, activity_id):#TODO: 教师取消活动
-
-@login_required
-def participants(request, activity_id):#TODO: 教师获取活动参与者列表
+    pass
 
 @login_required
 @csrf_exempt
 def comments(request, activity_id):#TODO: 活动评论列表与发表
-
+    pass
 @login_required
 def student_schedule(request):#TODO: 学生获取活动日程表
+    pass
