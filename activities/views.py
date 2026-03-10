@@ -91,8 +91,24 @@ def participants(request, activity_id):  # TODO: 教师获取活动参与者列�
     pass
 
 @login_required
-def activity_detail(request, activity_id):#TODO: 获取活动详情
-    pass
+def activity_detail(request, activity_id):#获取活动详情
+    try:
+        activity = Activity.objects.get(pk=activity_id, is_active=True)
+    except Activity.DoesNotExist:
+        return JsonResponse({'error': 'Activity not found'}, status=404)
+
+    data = {
+        'id': activity.id,
+        'title': activity.title,
+        'description': activity.description,
+        'time': activity.time.isoformat(),
+        'place': activity.place,
+        'category': activity.category,
+        'teacher_name': activity.created_by.username,
+        'is_registered': activity.registrations.filter(student=request.user).exists() if is_student(
+            request.user) else False,
+    }
+    return JsonResponse(data)
 @login_required
 @csrf_exempt
 @require_http_methods(["POST"])
