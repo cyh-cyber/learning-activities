@@ -84,11 +84,43 @@ def create_activity(request):# 教师创建活动
 @login_required
 @csrf_exempt
 @require_http_methods(["POST"])
-def cancel_activity(request, activity_id):  # TODO: 教师取消活动
-    pass
+def cancel_activity(request, activity_id):  #教师取消活动
+    if not is_teacher(request.user):
+        return JsonResponse({'error': 'Only teachers can cancel activities'}, status=403)
+
+    try:
+        activity = Activity.objects.get(pk=activity_id, created_by=request.user)
+    except Activity.DoesNotExist:
+        return JsonResponse({'error': 'Activity not found or you are not the creator'}, status=404)
+
+    activity.is_active = False
+    activity.save()
+    return JsonResponse({'message': 'Activity cancelled'})
+
 @login_required
-def participants(request, activity_id):  # TODO: 教师获取活动参与者列表
-    pass
+@csrf_exempt
+@require_http_methods(["GET"])
+def participants(request, activity_id):  #教师获取活动参与者列表
+    if not is_teacher(request.user):
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+
+    try:
+        activity = Activity.objects.get(pk=activity_id, created_by=request.user)
+    except Activity.DoesNotExist:
+        return JsonResponse({'error': 'Activity not found'}, status=404)
+
+    registrations = activity.registrations.select_related('student').all()
+    participants_list = [{
+        'id': reg.student.id,
+        'username': reg.student.username,
+        'email': reg.student.email,
+        'registered_at': reg.registered_at.isoformat()
+    } for reg in registrations]
+
+    return JsonResponse({
+        'activity_title': activity.title,
+        'participants': participants_list
+    })
 
 @login_required
 def activity_detail(request, activity_id):#获取活动详情
