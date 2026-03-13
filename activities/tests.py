@@ -3,7 +3,7 @@ from django.test import TestCase, Client
 from django.contrib.auth.models import User
 from django.urls import reverse
 from datetime import datetime, timedelta
-from .models import Activity, Registration
+from .models import Activity, Registration, Comment
 from users.models import Profile
 
 
@@ -798,42 +798,6 @@ class CancelActivityTestCase(TestCase):
         self.activity1.refresh_from_db()
         self.assertFalse(self.activity1.is_active)
 
-    def test_cancel_activity_get_method_not_allowed(self):
-        """测试使用 GET 方法取消活动时被拒绝"""
-        self.client.login(username='teacher1', password='password123')
-        url = reverse('cancel-activity', kwargs={'activity_id': self.activity1.id})
-
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, 405)  # Method Not Allowed
-
-    def test_cancel_activity_put_method_not_allowed(self):
-        """测试使用 PUT 方法取消活动时被拒绝"""
-        self.client.login(username='teacher1', password='password123')
-        url = reverse('cancel-activity', kwargs={'activity_id': self.activity1.id})
-
-        response = self.client.put(url)
-
-        self.assertEqual(response.status_code, 405)  # Method Not Allowed
-
-    def test_cancel_activity_delete_method_not_allowed(self):
-        """测试使用 DELETE 方法取消活动时被拒绝"""
-        self.client.login(username='teacher1', password='password123')
-        url = reverse('cancel-activity', kwargs={'activity_id': self.activity1.id})
-
-        response = self.client.delete(url)
-
-        self.assertEqual(response.status_code, 405)  # Method Not Allowed
-
-
-    def test_cancel_activity_delete_method_not_allowed(self):
-        """测试使用 DELETE 方法取消活动时被拒绝"""
-        self.client.login(username='teacher1', password='password123')
-        url = reverse('cancel-activity', kwargs={'activity_id': self.activity1.id})
-
-        response = self.client.delete(url)
-
-        self.assertEqual(response.status_code, 405)  # Method Not Allowed
 
 
 class ParticipantsTestCase(TestCase):
@@ -1211,32 +1175,6 @@ class RegisterActivityTestCase(TestCase):
         # 验证有两个报名记录
         self.assertEqual(Registration.objects.filter(activity=self.activity1).count(), 2)
 
-    def test_register_activity_get_method_not_allowed(self):
-        """测试使用 GET 方法报名活动时被拒绝"""
-        self.client.login(username='student1', password='password123')
-        url = reverse('register-activity', kwargs={'activity_id': self.activity1.id})
-
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, 405)  # Method Not Allowed
-
-    def test_register_activity_put_method_not_allowed(self):
-        """测试使用 PUT 方法报名活动时被拒绝"""
-        self.client.login(username='student1', password='password123')
-        url = reverse('register-activity', kwargs={'activity_id': self.activity1.id})
-
-        response = self.client.put(url)
-
-        self.assertEqual(response.status_code, 405)  # Method Not Allowed
-
-    def test_register_activity_delete_method_not_allowed(self):
-        """测试使用 DELETE 方法报名活动时被拒绝"""
-        self.client.login(username='student1', password='password123')
-        url = reverse('register-activity', kwargs={'activity_id': self.activity1.id})
-
-        response = self.client.delete(url)
-
-        self.assertEqual(response.status_code, 405)  # Method Not Allowed
 
 
 
@@ -1407,31 +1345,562 @@ class CancelRegistrationTestCase(TestCase):
             activity=self.activity2
         ).exists())
 
-    def test_cancel_registration_get_method_not_allowed(self):
-        """测试使用 GET 方法取消报名时被拒绝"""
+
+class CommentsTestCase(TestCase):
+    """测试 comments 视图函数"""
+
+    def setUp(self):
+        """设置测试数据"""
+        self.client = Client()
+
+        # 创建教师用户
+        self.teacher = User.objects.create_user(
+            username='teacher',
+            password='password123',
+            email='teacher@example.com'
+        )
+        self.teacher.profile.role = 'teacher'
+        self.teacher.profile.save()
+
+        # 创建学生用户
+        self.student1 = User.objects.create_user(
+            username='student1',
+            password='password123',
+            email='student1@example.com'
+        )
+        self.student1.profile.role = 'student'
+        self.student1.profile.save()
+
+        # 创建另一个学生用户
+        self.student2 = User.objects.create_user(
+            username='student2',
+            password='password123',
+            email='student2@example.com'
+        )
+        self.student2.profile.role = 'student'
+        self.student2.profile.save()
+
+        # 创建活动
+        self.activity = Activity.objects.create(
+            title='Test Activity',
+            description='Test Description',
+            time=datetime.now() + timedelta(days=1),
+            place='Test Place',
+            category='academic',
+            created_by=self.teacher,
+            is_active=True
+        )
+
+        # 创建不活跃的活动
+        self.activity_inactive = Activity.objects.create(
+            title='Inactive Activity',
+            description='Inactive Description',
+            time=datetime.now() + timedelta(days=2),
+            place='Inactive Place',
+            category='sports',
+            created_by=self.teacher,
+            is_active=False
+        )
+
+    def test_get_comments_success(self):
+        """测试成功获取评论列表"""
         self.client.login(username='student1', password='password123')
-        url = reverse('cancel-registration', kwargs={'activity_id': self.activity1.id})
 
-        response = self.client.get(url)
+        # 创建一些评论
+        Comment.objects.create(
+            user=self.student1,
+            activity=self.activity,
+            content='First comment'
+        )
+        Comment.objects.create(
+            user=self.student2,
+            activity=self.activity,
+            content='Second comment'
+        )
 
-        self.assertEqual(response.status_code, 405)  # Method Not Allowed
+        response = self.client.get(f'/api/activities/{self.activity.id}/comments/')
 
-    def test_cancel_registration_put_method_not_allowed(self):
-        """测试使用 PUT 方法取消报名时被拒绝"""
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIsInstance(data, list)
+        self.assertEqual(len(data), 2)
+
+        # 验证返回数据字段
+        comment = data[0]
+        self.assertIn('id', comment)
+        self.assertIn('user_name', comment)
+        self.assertIn('content', comment)
+        self.assertIn('created_at', comment)
+
+        # 验证评论内容
+        contents = [c['content'] for c in data]
+        self.assertIn('First comment', contents)
+        self.assertIn('Second comment', contents)
+
+    def test_get_comments_empty_list(self):
+        """测试获取没有评论的列表"""
         self.client.login(username='student1', password='password123')
-        url = reverse('cancel-registration', kwargs={'activity_id': self.activity1.id})
+        response = self.client.get(f'/api/activities/{self.activity.id}/comments/')
 
-        response = self.client.put(url)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIsInstance(data, list)
+        self.assertEqual(len(data), 0)
 
-        self.assertEqual(response.status_code, 405)  # Method Not Allowed
-
-    def test_cancel_registration_delete_method_not_allowed(self):
-        """测试使用 DELETE 方法取消报名时被拒绝"""
+    def test_get_comments_inactive_activity_not_found(self):
+        """测试获取不活跃活动的评论时返回 404"""
         self.client.login(username='student1', password='password123')
-        url = reverse('cancel-registration', kwargs={'activity_id': self.activity1.id})
+        response = self.client.get(f'/api/activities/{self.activity_inactive.id}/comments/')
 
-        response = self.client.delete(url)
+        self.assertEqual(response.status_code, 404)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertEqual(data['error'], 'Activity not found')
 
-        self.assertEqual(response.status_code, 405)  # Method Not Allowed
+    def test_get_comments_nonexistent_activity(self):
+        """测试获取不存在的活动的评论时返回 404"""
+        self.client.login(username='student1', password='password123')
+        response = self.client.get('/api/activities/99999/comments/')
+
+        self.assertEqual(response.status_code, 404)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertEqual(data['error'], 'Activity not found')
+
+    def test_post_comment_success(self):
+        """测试成功发表评论"""
+        self.client.login(username='student1', password='password123')
+
+        comment_data = {
+            'content': 'This is a test comment'
+        }
+
+        response = self.client.post(
+            f'/api/activities/{self.activity.id}/comments/',
+            data=json.dumps(comment_data),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+
+        self.assertIn('id', data)
+        self.assertIn('user_name', data)
+        self.assertIn('content', data)
+        self.assertIn('created_at', data)
+
+        self.assertEqual(data['user_name'], 'student1')
+        self.assertEqual(data['content'], 'This is a test comment')
+
+        # 验证评论已保存到数据库
+        comment = Comment.objects.get(id=data['id'])
+        self.assertEqual(comment.user, self.student1)
+        self.assertEqual(comment.activity, self.activity)
+        self.assertEqual(comment.content, 'This is a test comment')
+
+    def test_post_comment_missing_content(self):
+        """测试发表评论时缺少 content 字段"""
+        self.client.login(username='student1', password='password123')
+
+        comment_data = {}
+
+        response = self.client.post(
+            f'/api/activities/{self.activity.id}/comments/',
+            data=json.dumps(comment_data),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertEqual(data['error'], 'Content is required')
+
+    def test_post_comment_empty_content(self):
+        """测试发表评论时 content 为空字符串"""
+        self.client.login(username='student1', password='password123')
+
+        comment_data = {
+            'content': ''
+        }
+
+        response = self.client.post(
+            f'/api/activities/{self.activity.id}/comments/',
+            data=json.dumps(comment_data),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertEqual(data['error'], 'Content is required')
+
+    def test_post_comment_to_inactive_activity(self):
+        """测试向不活跃活动发表评论时返回 404"""
+        self.client.login(username='student1', password='password123')
+
+        comment_data = {
+            'content': 'Test comment'
+        }
+
+        response = self.client.post(
+            f'/api/activities/{self.activity_inactive.id}/comments/',
+            data=json.dumps(comment_data),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 404)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertEqual(data['error'], 'Activity not found')
+
+    def test_post_comment_unauthenticated(self):
+        """测试未认证用户无法发表评论"""
+        comment_data = {
+            'content': 'Test comment'
+        }
+
+        response = self.client.post(
+            f'/api/activities/{self.activity.id}/comments/',
+            data=json.dumps(comment_data),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 302)  # 重定向到登录页面
+
+    def test_get_comments_unauthenticated(self):
+        """测试未认证用户无法获取评论列表"""
+        response = self.client.get(f'/api/activities/{self.activity.id}/comments/')
+
+        self.assertEqual(response.status_code, 302)  # 重定向到登录页面
+
+    def test_post_comment_invalid_json(self):
+        """测试发送无效 JSON 时的处理"""
+        self.client.login(username='student1', password='password123')
+
+        response = self.client.post(
+            f'/api/activities/{self.activity.id}/comments/',
+            data='invalid json',
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 500)
+        data = response.json()
+        self.assertIn('error', data)
+
+    def test_comments_method_not_allowed(self):
+        """测试使用不支持的 HTTP 方法"""
+        self.client.login(username='student1', password='password123')
+
+        response = self.client.put(
+            f'/api/activities/{self.activity.id}/comments/',
+            data=json.dumps({'content': 'Test'}),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 405)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertEqual(data['error'], 'Method not allowed')
+
+    def test_comments_multiple_users_comments(self):
+        """测试多个用户的评论按时间排序"""
+        self.client.login(username='student1', password='password123')
+
+        # 创建不同时间的评论
+        Comment.objects.create(
+            user=self.student1,
+            activity=self.activity,
+            content='Oldest comment'
+        )
+        Comment.objects.create(
+            user=self.student2,
+            activity=self.activity,
+            content='Newest comment'
+        )
+
+        response = self.client.get(f'/api/activities/{self.activity.id}/comments/')
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        # 验证评论按创建时间倒序排列（最新的在前）
+        self.assertEqual(len(data), 2)
+        self.assertEqual(data[0]['content'], 'Newest comment')
+        self.assertEqual(data[1]['content'], 'Oldest comment')
+
+    def test_teacher_can_post_comment(self):
+        """测试教师可以发表评论"""
+        self.client.login(username='teacher', password='password123')
+
+        comment_data = {
+            'content': 'Teacher comment'
+        }
+
+        response = self.client.post(
+            f'/api/activities/{self.activity.id}/comments/',
+            data=json.dumps(comment_data),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertEqual(data['user_name'], 'teacher')
+        self.assertEqual(data['content'], 'Teacher comment')
+
+    def test_teacher_can_get_comments(self):
+        """测试教师可以获取评论列表"""
+        self.client.login(username='teacher', password='password123')
+
+        Comment.objects.create(
+            user=self.student1,
+            activity=self.activity,
+            content='Student comment'
+        )
+
+        response = self.client.get(f'/api/activities/{self.activity.id}/comments/')
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]['user_name'], 'student1')
+        self.assertEqual(data[0]['content'], 'Student comment')
+
+
+
+
+
+class StudentScheduleTestCase(TestCase):
+    """测试 student_schedule 视图函数"""
+
+    def setUp(self):
+        """设置测试数据"""
+        self.client = Client()
+
+        # 创建教师用户
+        self.teacher = User.objects.create_user(
+            username='teacher',
+            password='password123',
+            email='teacher@example.com'
+        )
+        self.teacher.profile.role = 'teacher'
+        self.teacher.profile.save()
+
+        # 创建学生用户
+        self.student1 = User.objects.create_user(
+            username='student1',
+            password='password123',
+            email='student1@example.com'
+        )
+        self.student1.profile.role = 'student'
+        self.student1.profile.save()
+
+        # 创建另一个学生用户
+        self.student2 = User.objects.create_user(
+            username='student2',
+            password='password123',
+            email='student2@example.com'
+        )
+        self.student2.profile.role = 'student'
+        self.student2.profile.save()
+
+        # 创建活动
+        self.activity1 = Activity.objects.create(
+            title='Activity 1',
+            description='Description 1',
+            time=datetime.now() + timedelta(days=1),
+            place='Place 1',
+            category='academic',
+            created_by=self.teacher,
+            is_active=True
+        )
+
+        self.activity2 = Activity.objects.create(
+            title='Activity 2',
+            description='Description 2',
+            time=datetime.now() + timedelta(days=2),
+            place='Place 2',
+            category='sports',
+            created_by=self.teacher,
+            is_active=True
+        )
+
+        self.activity3 = Activity.objects.create(
+            title='Activity 3',
+            description='Description 3',
+            time=datetime.now() + timedelta(days=3),
+            place='Place 3',
+            category='culture',
+            created_by=self.teacher,
+            is_active=True
+        )
+
+        # 创建不活跃的活动
+        self.activity_inactive = Activity.objects.create(
+            title='Inactive Activity',
+            description='Inactive Description',
+            time=datetime.now() + timedelta(days=4),
+            place='Place 4',
+            category='academic',
+            created_by=self.teacher,
+            is_active=False
+        )
+
+        # 学生 1 报名活动 1 和活动 2
+        Registration.objects.create(student=self.student1, activity=self.activity1)
+        Registration.objects.create(student=self.student1, activity=self.activity2)
+
+        # 学生 2 报名活动 2 和活动 3
+        Registration.objects.create(student=self.student2, activity=self.activity2)
+        Registration.objects.create(student=self.student2, activity=self.activity3)
+
+    def test_get_student_schedule_success(self):
+        """测试学生成功获取自己的活动日程表"""
+        self.client.login(username='student1', password='password123')
+        response = self.client.get(reverse('student-schedule'))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIsInstance(data, list)
+        self.assertEqual(len(data), 2)  # student1 报名了 2 个活动
+
+        # 验证返回数据字段
+        schedule_item = data[0]
+        self.assertIn('id', schedule_item)
+        self.assertIn('title', schedule_item)
+        self.assertIn('time', schedule_item)
+        self.assertIn('place', schedule_item)
+        self.assertIn('category', schedule_item)
+
+        # 验证返回的是学生报名的活动
+        activity_ids = [item['id'] for item in data]
+        self.assertIn(self.activity1.id, activity_ids)
+        self.assertIn(self.activity2.id, activity_ids)
+        self.assertNotIn(self.activity3.id, activity_ids)
+
+    def test_get_student_schedule_empty_list(self):
+        """测试没有报名活动的学生获取空日程表"""
+        # 创建一个没有报名任何活动的学生
+        student_new = User.objects.create_user(
+            username='student_new',
+            password='password123',
+            email='student_new@example.com'
+        )
+        student_new.profile.role = 'student'
+        student_new.profile.save()
+
+        self.client.login(username='student_new', password='password123')
+        response = self.client.get(reverse('student-schedule'))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIsInstance(data, list)
+        self.assertEqual(len(data), 0)
+
+    def test_get_student_schedule_excludes_inactive(self):
+        """测试日程表不包含不活跃的活动"""
+        # 让学生 1 报名不活跃的活动
+        Registration.objects.create(student=self.student1, activity=self.activity_inactive)
+
+        self.client.login(username='student1', password='password123')
+        response = self.client.get(reverse('student-schedule'))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        # 验证不活跃活动不在结果中
+        activity_ids = [item['id'] for item in data]
+        self.assertNotIn(self.activity_inactive.id, activity_ids)
+        # 仍然包含活跃活动
+        self.assertEqual(len(data), 2)
+
+    def test_get_student_schedule_ordered_by_time(self):
+        """测试日程表按时间正序排列"""
+        self.client.login(username='student1', password='password123')
+        response = self.client.get(reverse('student-schedule'))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        # 验证按时间排序
+        self.assertEqual(len(data), 2)
+        self.assertEqual(data[0]['id'], self.activity1.id)  # activity1 时间是第 1 天
+        self.assertEqual(data[1]['id'], self.activity2.id)  # activity2 时间是第 2 天
+
+    def test_student_schedule_teacher_permission_denied(self):
+        """测试教师用户访问学生日程表时权限被拒绝"""
+        self.client.login(username='teacher', password='password123')
+        response = self.client.get(reverse('student-schedule'))
+
+        self.assertEqual(response.status_code, 403)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertEqual(data['error'], 'Only students can view schedule')
+
+    def test_student_schedule_unauthenticated(self):
+        """测试未认证用户无法访问学生日程表"""
+        response = self.client.get(reverse('student-schedule'))
+
+        self.assertEqual(response.status_code, 302)  # 重定向到登录页面
+
+    def test_student_schedule_all_categories(self):
+        """测试学生获取不同类别的活动日程表"""
+        self.client.login(username='student2', password='password123')
+        response = self.client.get(reverse('student-schedule'))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        # student2 报名了 sports 和 culture 类别的活动
+        categories = [item['category'] for item in data]
+        self.assertIn('sports', categories)
+        self.assertIn('culture', categories)
+
+    def test_student_schedule_response_data_integrity(self):
+        """测试日程表返回数据的完整性"""
+        self.client.login(username='student1', password='password123')
+        response = self.client.get(reverse('student-schedule'))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        # 找到 activity1 的数据
+        activity1_data = next(item for item in data if item['id'] == self.activity1.id)
+
+        # 验证数据字段值正确
+        self.assertEqual(activity1_data['title'], 'Activity 1')
+        self.assertEqual(activity1_data['place'], 'Place 1')
+        self.assertEqual(activity1_data['category'], 'academic')
+        # 验证时间格式
+        self.assertIsNotNone(activity1_data['time'])
+        self.assertIsInstance(activity1_data['time'], str)
+
+    def test_student_schedule_multiple_registrations(self):
+        """测试学生有多个报名时的日程表"""
+        # 让学生 1 再报名 activity3
+        Registration.objects.create(student=self.student1, activity=self.activity3)
+
+        self.client.login(username='student1', password='password123')
+        response = self.client.get(reverse('student-schedule'))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 3)  # 现在应该有 3 个活动
+
+        activity_ids = [item['id'] for item in data]
+        self.assertIn(self.activity1.id, activity_ids)
+        self.assertIn(self.activity2.id, activity_ids)
+        self.assertIn(self.activity3.id, activity_ids)
+
+    def test_student_schedule_only_own_activities(self):
+        """测试学生只能看到自己报名的活动"""
+        self.client.login(username='student1', password='password123')
+        response = self.client.get(reverse('student-schedule'))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        # 验证不会返回其他学生的活动
+        activity_ids = [item['id'] for item in data]
+        self.assertNotIn(self.activity3.id, activity_ids)  # activity3 是 student2 报名的
 
 

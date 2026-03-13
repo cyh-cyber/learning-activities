@@ -175,8 +175,62 @@ def cancel_registration(request, activity_id):#学生取消报名
 
 @login_required
 @csrf_exempt
-def comments(request, activity_id):#TODO: 活动评论列表与发表
-    pass
+def comments(request, activity_id):#活动评论列表与发表
+    try:
+        activity = Activity.objects.get(pk=activity_id, is_active=True)
+    except Activity.DoesNotExist:
+        return JsonResponse({'error': 'Activity not found'}, status=404)
+
+    if request.method == 'GET':
+        comments = activity.comments.all().order_by('-created_at')
+        data = [{
+            'id': c.id,
+            'user_name': c.user.username,
+            'content': c.content,
+            'created_at': c.created_at.isoformat()
+        } for c in comments]
+        return JsonResponse(data, safe=False)
+
+    elif request.method == 'POST':
+        try:
+            body = json.loads(request.body)
+            content = body.get('content')
+            if not content:
+                return JsonResponse({'error': 'Content is required'}, status=400)
+
+            comment = Comment.objects.create(
+                user=request.user,
+                activity=activity,
+                content=content
+            )
+            return JsonResponse({
+                'id': comment.id,
+                'user_name': comment.user.username,
+                'content': comment.content,
+                'created_at': comment.created_at.isoformat()
+            }, status=201)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=500)
+
+    else:
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
 @login_required
-def student_schedule(request):#TODO: 学生获取活动日程表
-    pass
+@csrf_exempt
+@require_http_methods(["GET"])
+def student_schedule(request):#学生获取活动日程表
+    if not is_student(request.user):
+        return JsonResponse({'error': 'Only students can view schedule'}, status=403)
+
+    activities = Activity.objects.filter(
+        registrations__student=request.user,
+        is_active=True
+    ).order_by('time')
+
+    data = [{
+        'id': act.id,
+        'title': act.title,
+        'time': act.time.isoformat(),
+        'place': act.place,
+        'category': act.category,
+    } for act in activities]
+    return JsonResponse(data, safe=False)
