@@ -1056,3 +1056,382 @@ class ParticipantsTestCase(TestCase):
             except ValueError:
                 self.fail(f"registered_at '{registered_at}' is not in ISO format")
 
+
+
+class RegisterActivityTestCase(TestCase):
+    """测试 register_activity 视图函数"""
+
+    def setUp(self):
+        """设置测试数据"""
+        self.client = Client()
+
+        # 创建教师用户
+        self.teacher = User.objects.create_user(
+            username='teacher',
+            password='password123',
+            email='teacher@example.com'
+        )
+        self.teacher.profile.role = 'teacher'
+        self.teacher.profile.save()
+
+        # 创建学生用户
+        self.student1 = User.objects.create_user(
+            username='student1',
+            password='password123',
+            email='student1@example.com'
+        )
+        self.student1.profile.role = 'student'
+        self.student1.profile.save()
+
+        # 创建另一个学生用户
+        self.student2 = User.objects.create_user(
+            username='student2',
+            password='password123',
+            email='student2@example.com'
+        )
+        self.student2.profile.role = 'student'
+        self.student2.profile.save()
+
+        # 创建活动
+        self.activity1 = Activity.objects.create(
+            title='Activity 1',
+            description='Description 1',
+            time=datetime.now() + timedelta(days=1),
+            place='Place 1',
+            category='academic',
+            created_by=self.teacher,
+            is_active=True
+        )
+
+        # 创建不活跃的活动
+        self.activity_inactive = Activity.objects.create(
+            title='Inactive Activity',
+            description='Inactive Description',
+            time=datetime.now() + timedelta(days=2),
+            place='Place 2',
+            category='sports',
+            created_by=self.teacher,
+            is_active=False
+        )
+
+    def test_register_activity_success(self):
+        """测试学生成功报名活动"""
+        self.client.login(username='student1', password='password123')
+        url = reverse('register-activity', kwargs={'activity_id': self.activity1.id})
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn('message', data)
+        self.assertEqual(data['message'], 'Registered successfully')
+
+        # 验证报名记录已创建
+        self.assertTrue(Registration.objects.filter(
+            student=self.student1,
+            activity=self.activity1
+        ).exists())
+
+    def test_register_activity_teacher_permission_denied(self):
+        """测试教师尝试报名活动时权限被拒绝"""
+        self.client.login(username='teacher', password='password123')
+        url = reverse('register-activity', kwargs={'activity_id': self.activity1.id})
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 403)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertEqual(data['error'], 'Only students can register')
+
+    def test_register_activity_unauthenticated(self):
+        """测试未认证用户无法报名活动"""
+        url = reverse('register-activity', kwargs={'activity_id': self.activity1.id})
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 302)  # 重定向到登录页面
+
+    def test_register_activity_not_found(self):
+        """测试报名不存在的活动时返回错误"""
+        self.client.login(username='student1', password='password123')
+        url = reverse('register-activity', kwargs={'activity_id': 99999})
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 404)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertEqual(data['error'], 'Activity not found')
+
+    def test_register_activity_inactive(self):
+        """测试报名不活跃的活动时返回错误"""
+        self.client.login(username='student1', password='password123')
+        url = reverse('register-activity', kwargs={'activity_id': self.activity_inactive.id})
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 404)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertEqual(data['error'], 'Activity not found')
+
+    def test_register_activity_already_registered(self):
+        """测试学生重复报名同一活动时返回错误"""
+        # 先创建一条报名记录
+        Registration.objects.create(student=self.student1, activity=self.activity1)
+
+        self.client.login(username='student1', password='password123')
+        url = reverse('register-activity', kwargs={'activity_id': self.activity1.id})
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertEqual(data['error'], 'Already registered')
+
+    def test_register_activity_multiple_students(self):
+        """测试多个学生可以报名同一个活动"""
+        self.client.login(username='student1', password='password123')
+        url = reverse('register-activity', kwargs={'activity_id': self.activity1.id})
+
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+
+        # 另一个学生也报名
+        self.client.logout()
+        self.client.login(username='student2', password='password123')
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['message'], 'Registered successfully')
+
+        # 验证有两个报名记录
+        self.assertEqual(Registration.objects.filter(activity=self.activity1).count(), 2)
+
+    def test_register_activity_get_method_not_allowed(self):
+        """测试使用 GET 方法报名活动时被拒绝"""
+        self.client.login(username='student1', password='password123')
+        url = reverse('register-activity', kwargs={'activity_id': self.activity1.id})
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 405)  # Method Not Allowed
+
+    def test_register_activity_put_method_not_allowed(self):
+        """测试使用 PUT 方法报名活动时被拒绝"""
+        self.client.login(username='student1', password='password123')
+        url = reverse('register-activity', kwargs={'activity_id': self.activity1.id})
+
+        response = self.client.put(url)
+
+        self.assertEqual(response.status_code, 405)  # Method Not Allowed
+
+    def test_register_activity_delete_method_not_allowed(self):
+        """测试使用 DELETE 方法报名活动时被拒绝"""
+        self.client.login(username='student1', password='password123')
+        url = reverse('register-activity', kwargs={'activity_id': self.activity1.id})
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, 405)  # Method Not Allowed
+
+
+
+
+
+class CancelRegistrationTestCase(TestCase):
+    """测试 cancel_registration 视图函数"""
+
+    def setUp(self):
+        """设置测试数据"""
+        self.client = Client()
+
+        # 创建教师用户
+        self.teacher = User.objects.create_user(
+            username='teacher',
+            password='password123',
+            email='teacher@example.com'
+        )
+        self.teacher.profile.role = 'teacher'
+        self.teacher.profile.save()
+
+        # 创建学生用户
+        self.student1 = User.objects.create_user(
+            username='student1',
+            password='password123',
+            email='student1@example.com'
+        )
+        self.student1.profile.role = 'student'
+        self.student1.profile.save()
+
+        # 创建另一个学生用户
+        self.student2 = User.objects.create_user(
+            username='student2',
+            password='password123',
+            email='student2@example.com'
+        )
+        self.student2.profile.role = 'student'
+        self.student2.profile.save()
+
+        # 创建活动
+        self.activity1 = Activity.objects.create(
+            title='Activity 1',
+            description='Description 1',
+            time=datetime.now() + timedelta(days=1),
+            place='Place 1',
+            category='academic',
+            created_by=self.teacher,
+            is_active=True
+        )
+
+        # 创建活动 2
+        self.activity2 = Activity.objects.create(
+            title='Activity 2',
+            description='Description 2',
+            time=datetime.now() + timedelta(days=2),
+            place='Place 2',
+            category='sports',
+            created_by=self.teacher,
+            is_active=True
+        )
+
+    def test_cancel_registration_success(self):
+        """测试学生成功取消报名"""
+        # 先创建报名记录
+        registration = Registration.objects.create(
+            student=self.student1,
+            activity=self.activity1
+        )
+
+        self.client.login(username='student1', password='password123')
+        url = reverse('cancel-registration', kwargs={'activity_id': self.activity1.id})
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn('message', data)
+        self.assertEqual(data['message'], 'Registration cancelled')
+
+        # 验证报名记录已被删除
+        self.assertFalse(Registration.objects.filter(
+            student=self.student1,
+            activity=self.activity1
+        ).exists())
+
+    def test_cancel_registration_teacher_permission_denied(self):
+        """测试教师尝试取消报名时权限被拒绝"""
+        # 创建学生的报名记录
+        Registration.objects.create(student=self.student1, activity=self.activity1)
+
+        self.client.login(username='teacher', password='password123')
+        url = reverse('cancel-registration', kwargs={'activity_id': self.activity1.id})
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 403)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertEqual(data['error'], 'Only students can cancel registration')
+
+    def test_cancel_registration_unauthenticated(self):
+        """测试未认证用户无法取消报名"""
+        url = reverse('cancel-registration', kwargs={'activity_id': self.activity1.id})
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 302)  # 重定向到登录页面
+
+    def test_cancel_registration_not_registered(self):
+        """测试学生取消未报名的活动时返回错误"""
+        self.client.login(username='student1', password='password123')
+        url = reverse('cancel-registration', kwargs={'activity_id': self.activity1.id})
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 404)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertEqual(data['error'], 'Not registered')
+
+    def test_cancel_registration_nonexistent_activity(self):
+        """测试取消不存在的活动的报名时报错"""
+        self.client.login(username='student1', password='password123')
+        url = reverse('cancel-registration', kwargs={'activity_id': 99999})
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 404)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertEqual(data['error'], 'Not registered')
+
+    def test_cancel_registration_other_student_registration(self):
+        """测试学生不能取消其他学生的报名"""
+        # 学生 2 报名了活动 1
+        Registration.objects.create(student=self.student2, activity=self.activity1)
+
+        self.client.login(username='student1', password='password123')
+        url = reverse('cancel-registration', kwargs={'activity_id': self.activity1.id})
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 404)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertEqual(data['error'], 'Not registered')
+
+    def test_cancel_registration_multiple_registrations(self):
+        """测试学生取消一个活动的报名不影响其他活动的报名"""
+        # 学生 1 报名了两个活动
+        Registration.objects.create(student=self.student1, activity=self.activity1)
+        Registration.objects.create(student=self.student1, activity=self.activity2)
+
+        self.client.login(username='student1', password='password123')
+        url = reverse('cancel-registration', kwargs={'activity_id': self.activity1.id})
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 200)
+
+        # 验证只删除了活动 1 的报名，活动 2 的报名仍然存在
+        self.assertFalse(Registration.objects.filter(
+            student=self.student1,
+            activity=self.activity1
+        ).exists())
+        self.assertTrue(Registration.objects.filter(
+            student=self.student1,
+            activity=self.activity2
+        ).exists())
+
+    def test_cancel_registration_get_method_not_allowed(self):
+        """测试使用 GET 方法取消报名时被拒绝"""
+        self.client.login(username='student1', password='password123')
+        url = reverse('cancel-registration', kwargs={'activity_id': self.activity1.id})
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 405)  # Method Not Allowed
+
+    def test_cancel_registration_put_method_not_allowed(self):
+        """测试使用 PUT 方法取消报名时被拒绝"""
+        self.client.login(username='student1', password='password123')
+        url = reverse('cancel-registration', kwargs={'activity_id': self.activity1.id})
+
+        response = self.client.put(url)
+
+        self.assertEqual(response.status_code, 405)  # Method Not Allowed
+
+    def test_cancel_registration_delete_method_not_allowed(self):
+        """测试使用 DELETE 方法取消报名时被拒绝"""
+        self.client.login(username='student1', password='password123')
+        url = reverse('cancel-registration', kwargs={'activity_id': self.activity1.id})
+
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, 405)  # Method Not Allowed
+
+

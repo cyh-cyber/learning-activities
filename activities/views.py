@@ -144,13 +144,34 @@ def activity_detail(request, activity_id):#获取活动详情
 @login_required
 @csrf_exempt
 @require_http_methods(["POST"])
-def register_activity(request, activity_id):#TODO: 学生报名活动
-    pass
+def register_activity(request, activity_id):#学生报名活动
+    if not is_student(request.user):
+        return JsonResponse({'error': 'Only students can register'}, status=403)
+
+    try:
+        activity = Activity.objects.get(pk=activity_id, is_active=True)
+    except Activity.DoesNotExist:
+        return JsonResponse({'error': 'Activity not found'}, status=404)
+
+    if Registration.objects.filter(student=request.user, activity=activity).exists():
+        return JsonResponse({'error': 'Already registered'}, status=400)
+
+    Registration.objects.create(student=request.user, activity=activity)
+    return JsonResponse({'message': 'Registered successfully'})
+
 @login_required
 @csrf_exempt
 @require_http_methods(["POST"])
-def cancel_registration(request, activity_id):#TODO: 学生取消报名
-    pass
+def cancel_registration(request, activity_id):#学生取消报名
+    if not is_student(request.user):
+        return JsonResponse({'error': 'Only students can cancel registration'}, status=403)
+
+    try:
+        registration = Registration.objects.get(student=request.user, activity_id=activity_id)
+        registration.delete()
+        return JsonResponse({'message': 'Registration cancelled'})
+    except Registration.DoesNotExist:
+        return JsonResponse({'error': 'Not registered'}, status=404)
 
 @login_required
 @csrf_exempt
