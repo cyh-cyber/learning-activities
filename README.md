@@ -1,29 +1,29 @@
 "# learning-activities" 
-# 如何运行？
-1.克隆项目
-找到一个你想要置放项目的文件夹，打开控制台执行
+# How to run?
+1.Clone the project
+Find a folder where you want to place the project, open the console and execute
 ```sh
-git clone <仓库地址>
+git clone <repository URL>
 ```
-然后
+Then
 ```sh
-cd <项目目录>
+cd <project directory>
 ```
-2.创建虚拟环境
+2.Create a virtual environment
 ```sh
-python -m venv <你想要的环境名>
+python -m venv <your desired environment name>
 source venv/bin/activate  # Linux/Mac
 venv\Scripts\activate     # Windows
 ```
-然后安装依赖
+Then install dependencies
 ```sh
 pip install -r requirements.txt
 ```
-3.执行数据库迁移
+3.Perform database migration
 ```sh
 python manage.py migrate
 ```
-4.最后运行服务器
+4.Finally, run the server
 ```sh
 python manage.py runserver
 ```
